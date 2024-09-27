@@ -60,7 +60,13 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		if value == "NONE" {
 			bodyContent.Disable()
 		} else {
-			bodyContent.Enable()
+			if value == "FORM" {
+				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
+			} else if value == "MULTIPART FORM" {
+
+			} else if value == "RAW" {
+				bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
+			}
 		}
 	})
 	bodyType.SetSelectedIndex(0)
