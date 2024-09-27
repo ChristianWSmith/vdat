@@ -90,7 +90,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		urlText := url.Text
 		paramsText := []string{}
 		for _, line := range strings.Split(params.Text, "\n") {
-			if line == "" {
+			if line == "" || line[0] == '#' {
 				continue
 			}
 			key, value, found := strings.Cut(line, "=")
@@ -110,12 +110,29 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		var body io.Reader
 		if bodyType.Selected == BODY_TYPE_NONE {
 			body = strings.NewReader(string(""))
-		} else if bodyType.Selected == BODY_TYPE_FORM {
-			if len(bodyContent.Text) != 0 {
-				body = strings.NewReader(strings.Join(strings.Split(bodyContent.Text, "\n"), "&"))
-			}
 		} else if bodyType.Selected == BODY_TYPE_RAW {
 			body = strings.NewReader(bodyContent.Text)
+		} else if bodyType.Selected == BODY_TYPE_FORM {
+			bodyText := []string{}
+			for _, line := range strings.Split(bodyContent.Text, "\n") {
+				if line == "" || line[0] == '#' {
+					continue
+				}
+				key, value, found := strings.Cut(line, "=")
+				if found {
+					if key != "" && validRunes(key) && validRunes(value) {
+						bodyText = append(paramsText, key+"="+value)
+					} else {
+						errorPopUp(canvas, errors.New(fmt.Sprint("Error with body: ", key, "=", value)))
+					}
+				}
+			}
+			finalBodyText := ""
+			if len(paramsText) != 0 {
+				finalBodyText = strings.Join(bodyText, "&")
+			}
+			body = strings.NewReader(finalBodyText)
+
 		}
 
 		// create request
@@ -136,7 +153,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 
 		// set headers
 		for _, line := range strings.Split(headers.Text, "\n") {
-			if line == "" {
+			if line == "" || line[0] == '#' {
 				continue
 			}
 			key, value, found := strings.Cut(line, "\t")

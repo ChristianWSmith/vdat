@@ -12,11 +12,11 @@ var VALID_RUNES = []rune{
 	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
 	'-', '_', '.', '~', '!', '#', '$', '&', '(', ')', '*', '+', ',', '/', ':', ';', '=', '?', '@', '[', ']'}
 
-const HEADERS_PLACEHOLDER = "<header1> <tab> <value1>\n<header2> <tab> <value2>"
-const PARAMS_PLACEHOLDER = "<param1>=<value1>\n<param2>=<value2>"
+const HEADERS_PLACEHOLDER = "# comment\nheader1 <tab> value1\nheader2 <tab> value2"
+const PARAMS_PLACEHOLDER = "# comment\nparam1=value1\nparam2=value2"
 const BODY_CONTENT_PLACEHOLDER_TYPE_NONE = ""
-const BODY_CONTENT_PLACEHOLDER_TYPE_FORM = "<body1>=<value1>\n<body2>=<value2>"
-const BODY_CONTENT_PLACEHOLDER_TYPE_RAW = "{\n    \"<body1>\": \"<value1>\",\n    \"<body2>\": \"<value2>\"\n}"
+const BODY_CONTENT_PLACEHOLDER_TYPE_FORM = "# comment\nbody1=value1\nbody2=value2"
+const BODY_CONTENT_PLACEHOLDER_TYPE_RAW = "{\n    \"body1\": \"value1\",\n    \"body2\": \"value2\"\n}"
 const RESPONSE_STATUS_PLACEHOLDER = "<response status>"
 const RESPONSE_BODY_PLACEHOLDER = "<response body>"
 const URL_PLACEHOLDER = "<url>"
