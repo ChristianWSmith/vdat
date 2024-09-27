@@ -96,11 +96,13 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			if line == "" {
 				continue
 			}
-			keyValue := strings.Split(line, "=")
-			if len(keyValue) == 2 && keyValue[0] != "" && validRunes(keyValue[0]) && validRunes(keyValue[1]) {
-				paramsText = append(paramsText, keyValue[0]+"="+keyValue[1])
-			} else {
-				errorPopUp(canvas, errors.New(fmt.Sprint("Error with param: ", keyValue)))
+			key, value, found := strings.Cut(line, "=")
+			if found {
+				if key != "" && validRunes(key) && validRunes(value) {
+					paramsText = append(paramsText, key+"="+value)
+				} else {
+					errorPopUp(canvas, errors.New(fmt.Sprint("Error with param: ", key, "=", value)))
+				}
 			}
 		}
 		if len(paramsText) != 0 {
@@ -134,11 +136,13 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			if line == "" {
 				continue
 			}
-			keyValue := strings.Split(line, "\t")
-			if len(keyValue) == 2 && keyValue[0] != "" && validRunes(keyValue[0]) && validRunes(keyValue[1]) {
-				req.Header.Set(keyValue[0], keyValue[1])
-			} else {
-				errorPopUp(canvas, errors.New(fmt.Sprint("Error with header: ", keyValue)))
+			key, value, found := strings.Cut(line, "\t")
+			if found {
+				if key != "" && validRunes(key) && validRunes(value) {
+					req.Header.Set(key, value)
+				} else {
+					errorPopUp(canvas, errors.New(fmt.Sprint("Error with header: ", key, "=", value)))
+				}
 			}
 		}
 
