@@ -63,8 +63,10 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			bodyContent.Disable()
 			bodyContent.SetPlaceHolder("")
 		} else if value == BODY_TYPE_FORM {
+			bodyContent.Enable()
 			bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
 		} else if value == BODY_TYPE_RAW {
+			bodyContent.Enable()
 			bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\",\n    \"body2\": \"value2\"\n}")
 		}
 
