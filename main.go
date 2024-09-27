@@ -13,6 +13,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+const BODY_TYPE_FORM = "FORM"
+const BODY_TYPE_RAW = "RAW"
+const BODY_TYPE_NONE = "NONE"
+
 var VALID_HEADER_CHARACTERS = []rune{
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
@@ -54,17 +58,16 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	params.SetPlaceHolder("param1=value1\nparam2=value2")
 	bodyContent := widget.NewMultiLineEntry()
 	bodyContent.TextStyle.Monospace = true
-	bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
-	bodyType := widget.NewSelect([]string{"FORM", "RAW", "NONE"}, func(value string) {
-		if value == "NONE" {
+	bodyType := widget.NewSelect([]string{BODY_TYPE_FORM, BODY_TYPE_RAW, BODY_TYPE_NONE}, func(value string) {
+		if value == BODY_TYPE_NONE {
 			bodyContent.Disable()
-		} else {
-			if value == "FORM" {
-				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
-			} else if value == "RAW" {
-				bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\"\n    \"body2\": \"value2\"\n}")
-			}
+			bodyContent.SetPlaceHolder("")
+		} else if value == BODY_TYPE_FORM {
+			bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
+		} else if value == BODY_TYPE_RAW {
+			bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\",\n    \"body2\": \"value2\"\n}")
 		}
+
 	})
 	bodyType.SetSelectedIndex(0)
 	bodyPane := container.NewBorder(bodyType, nil, nil, nil, bodyContent)
@@ -110,13 +113,13 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		}
 
 		var body io.Reader
-		if bodyType.Selected == "NONE" {
+		if bodyType.Selected == BODY_TYPE_NONE {
 			body = strings.NewReader(string(""))
-		} else if bodyType.Selected == "FORM" {
+		} else if bodyType.Selected == BODY_TYPE_FORM {
 			if len(bodyContent.Text) != 0 {
 				body = strings.NewReader(strings.Join(strings.Split(bodyContent.Text, "\n"), "&"))
 			}
-		} else if bodyType.Selected == "RAW" {
+		} else if bodyType.Selected == BODY_TYPE_RAW {
 			body = strings.NewReader(bodyContent.Text)
 		}
 		req, err := http.NewRequest(restMethod.Selected, urlText, body)
@@ -124,7 +127,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			errorPopUp(canvas, err)
 			return
 		}
-		if bodyType.Selected == "FORM" {
+		if bodyType.Selected == BODY_TYPE_FORM {
 			err = req.ParseForm()
 			if err != nil {
 				errorPopUp(canvas, err)
