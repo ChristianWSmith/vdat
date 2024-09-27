@@ -64,7 +64,24 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
 			} else if value == "MULTIPART FORM" {
 				// TODO: figure out proper placeholder
-				bodyContent.SetPlaceHolder("TODO")
+				postData :=
+					`--xxx
+Content-Disposition: form-data; name="field1"
+
+value1
+--xxx
+Content-Disposition: form-data; name="field2"
+
+value2
+--xxx
+Content-Disposition: form-data; name="file"; filename="file"
+Content-Type: application/octet-stream
+Content-Transfer-Encoding: binary
+
+binary data
+--xxx--
+`
+				bodyContent.SetPlaceHolder(postData)
 			} else if value == "RAW" {
 				bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\"\n    \"body2\": \"value2\"\n}")
 			}
@@ -119,7 +136,6 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 				body = strings.NewReader(strings.Join(strings.Split(bodyContent.Text, "\n"), "&"))
 			}
 		} else if bodyType.Selected == "MULTIPART FORM" {
-			// TODO: make this not raw
 			body = strings.NewReader(bodyContent.Text)
 		} else if bodyType.Selected == "RAW" {
 			body = strings.NewReader(bodyContent.Text)
