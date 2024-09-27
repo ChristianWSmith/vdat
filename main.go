@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"strings"
 
@@ -56,31 +55,12 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	bodyContent := widget.NewMultiLineEntry()
 	bodyContent.TextStyle.Monospace = true
 	bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
-	bodyType := widget.NewSelect([]string{"FORM", "MULTIPART FORM", "RAW", "NONE"}, func(value string) {
+	bodyType := widget.NewSelect([]string{"FORM", "RAW", "NONE"}, func(value string) {
 		if value == "NONE" {
 			bodyContent.Disable()
 		} else {
 			if value == "FORM" {
 				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
-			} else if value == "MULTIPART FORM" {
-				postData :=
-					`--xxx
-Content-Disposition: form-data; name="field1"
-
-value1
---xxx
-Content-Disposition: form-data; name="field2"
-
-value2
---xxx
-Content-Disposition: form-data; name="file"; filename="file"
-Content-Type: application/octet-stream
-Content-Transfer-Encoding: binary
-
-binary data
---xxx--
-`
-				bodyContent.SetPlaceHolder(postData)
 			} else if value == "RAW" {
 				bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\"\n    \"body2\": \"value2\"\n}")
 			}
@@ -134,8 +114,6 @@ binary data
 			if len(bodyContent.Text) != 0 {
 				body = strings.NewReader(strings.Join(strings.Split(bodyContent.Text, "\n"), "&"))
 			}
-		} else if bodyType.Selected == "MULTIPART FORM" {
-			body = strings.NewReader(bodyContent.Text)
 		} else if bodyType.Selected == "RAW" {
 			body = strings.NewReader(bodyContent.Text)
 		}
@@ -146,12 +124,6 @@ binary data
 		}
 		if bodyType.Selected == "FORM" {
 			err = req.ParseForm()
-			if err != nil {
-				errorPopUp(canvas, err)
-				return
-			}
-		} else if bodyType.Selected == "MULTIPART FORM" {
-			err = req.ParseMultipartForm(math.MaxInt64)
 			if err != nil {
 				errorPopUp(canvas, err)
 				return
