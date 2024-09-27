@@ -8,13 +8,36 @@ import (
 )
 
 func main() {
-	a := app.New()
-	w := a.NewWindow("vdat")
-	l := widget.NewLabel("Hello World!")
-	l.Alignment = fyne.TextAlignCenter
+	vdatApp := app.New()
+	vdatWindow := vdatApp.NewWindow("vdat")
 
-	b := container.NewBorder(nil, nil, nil, nil, l)
+	tabs := container.NewAppTabs()
 
-	w.SetContent(b)
-	w.ShowAndRun()
+	tabTitle := widget.NewEntry()
+
+	tabs.OnSelected = func(ti *container.TabItem) {
+		tabTitle.SetText(tabs.Selected().Text)
+	}
+
+	tabTitle.OnChanged = func(s string) {
+		tabs.Selected().Text = s
+		tabs.Refresh()
+	}
+
+	newTabButton := widget.NewButton("NEW", func() {
+		newTab := container.NewTabItem("untitled", widget.NewLabel(""))
+		tabs.Append(newTab)
+	})
+	closeTabButton := widget.NewButton("CLOSE", func() {
+		tabs.RemoveIndex(tabs.SelectedIndex())
+	})
+	tabControlButtons := container.NewHBox(newTabButton, closeTabButton)
+	tabControls := container.NewBorder(nil, nil, nil, tabControlButtons, tabTitle)
+
+	tabsWithControls := container.NewBorder(tabControls, nil, nil, nil, tabs)
+
+	vdatWindow.SetContent(tabsWithControls)
+
+	vdatWindow.Resize(fyne.NewSize(800, 450))
+	vdatWindow.ShowAndRun()
 }
