@@ -63,7 +63,6 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			if value == "FORM" {
 				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
 			} else if value == "MULTIPART FORM" {
-				// TODO: figure out proper placeholder
 				postData :=
 					`--xxx
 Content-Disposition: form-data; name="field1"
