@@ -96,7 +96,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	sendButton := widget.NewButton("SEND", func() {
 		urlText := url.Text
 		paramsText := []string{}
-		for _, line := range strings.Split(headers.Text, "\n") {
+		for _, line := range strings.Split(params.Text, "\n") {
 			if line == "" {
 				continue
 			}
