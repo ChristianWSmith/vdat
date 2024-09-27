@@ -13,6 +13,13 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+func smartFormat(content []byte) string {
+	// TODO: use the following to intelligently format response,
+	// possibly also format body that we're sending out whenever we save and/or hit send
+	// http.DetectContentType(responseBodyContent)
+	return string(content)
+}
+
 func errorPopUp(canvas fyne.Canvas, err error) {
 	modalContent := container.NewVBox(widget.NewLabel(err.Error()))
 	popUp := widget.NewModalPopUp(modalContent, canvas)
@@ -187,12 +194,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 
 		// report response
 		responseStatus.SetText(resp.Status)
-
-		// TODO: use the following to intelligently format response,
-		// possibly also format body that we're sending out whenever we save and/or hit send
-		// http.DetectContentType(responseBodyContent)
-
-		responseBody.SetText(string(responseBodyContent))
+		responseBody.SetText(smartFormat(responseBodyContent))
 	})
 	controls := container.NewBorder(nil, nil, restMethod, sendButton, url)
 
