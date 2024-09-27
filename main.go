@@ -13,20 +13,10 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-const BODY_TYPE_FORM = "FORM"
-const BODY_TYPE_RAW = "RAW"
-const BODY_TYPE_NONE = "NONE"
-
-var VALID_HEADER_CHARACTERS = []rune{
-	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-	'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-	'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-	'-', '_', '.', '~', '!', '#', '$', '&', '(', ')', '*', '+', ',', '/', ':', ';', '=', '?', '@', '[', ']'}
-
 func errorPopUp(canvas fyne.Canvas, err error) {
 	modalContent := container.NewVBox(widget.NewLabel(err.Error()))
 	popUp := widget.NewModalPopUp(modalContent, canvas)
-	okButton := widget.NewButton("Ok", func() { popUp.Hide() })
+	okButton := widget.NewButton(OK_BUTTON_TEXT, func() { popUp.Hide() })
 	modalContent.Add(okButton)
 	popUp.Show()
 }
@@ -42,7 +32,7 @@ func containsRune(slice []rune, element rune) bool {
 
 func validRunes(value string) bool {
 	for _, r := range value {
-		if !containsRune(VALID_HEADER_CHARACTERS, r) {
+		if !containsRune(VALID_RUNES, r) {
 			return false
 		}
 	}
@@ -52,22 +42,22 @@ func validRunes(value string) bool {
 func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	headers := widget.NewMultiLineEntry()
 	headers.TextStyle.Monospace = true
-	headers.SetPlaceHolder("header1 <tab> value1\nheader2 <tab> value2")
+	headers.SetPlaceHolder(HEADERS_PLACEHOLDER)
 	params := widget.NewMultiLineEntry()
 	params.TextStyle.Monospace = true
-	params.SetPlaceHolder("param1=value1\nparam2=value2")
+	params.SetPlaceHolder(PARAMS_PLACEHOLDER)
 	bodyContent := widget.NewMultiLineEntry()
 	bodyContent.TextStyle.Monospace = true
 	bodyType := widget.NewSelect([]string{BODY_TYPE_FORM, BODY_TYPE_RAW, BODY_TYPE_NONE}, func(value string) {
 		if value == BODY_TYPE_NONE {
 			bodyContent.Disable()
-			bodyContent.SetPlaceHolder("")
+			bodyContent.SetPlaceHolder(BODY_CONTENT_PLACEHOLDER_TYPE_NONE)
 		} else if value == BODY_TYPE_FORM {
 			bodyContent.Enable()
-			bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
+			bodyContent.SetPlaceHolder(BODY_CONTENT_PLACEHOLDER_TYPE_FORM)
 		} else if value == BODY_TYPE_RAW {
 			bodyContent.Enable()
-			bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\",\n    \"body2\": \"value2\"\n}")
+			bodyContent.SetPlaceHolder(BODY_CONTENT_PLACEHOLDER_TYPE_RAW)
 		}
 
 	})
@@ -75,10 +65,10 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	bodyPane := container.NewBorder(bodyType, nil, nil, nil, bodyContent)
 	responseStatus := widget.NewEntry()
 	responseStatus.TextStyle.Monospace = true
-	responseStatus.SetPlaceHolder("<response status>")
+	responseStatus.SetPlaceHolder(RESPONSE_STATUS_PLACEHOLDER)
 	responseBody := widget.NewMultiLineEntry()
 	responseBody.TextStyle.Monospace = true
-	responseBody.SetPlaceHolder("<response body>")
+	responseBody.SetPlaceHolder(RESPONSE_BODY_PLACEHOLDER)
 	responseBody.Wrapping = fyne.TextWrapWord
 
 	restMethod := widget.NewSelect([]string{
@@ -93,8 +83,10 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		http.MethodTrace}, nil)
 	restMethod.SetSelectedIndex(0)
 	url := widget.NewEntry()
-	url.SetPlaceHolder("https://www.website.com/path/to/endpoint")
-	sendButton := widget.NewButton("SEND", func() {
+	url.SetPlaceHolder(URL_PLACEHOLDER)
+
+	sendButton := widget.NewButton(SEND_BUTTON_TEXT, func() {
+		// prepare url with params
 		urlText := url.Text
 		paramsText := []string{}
 		for _, line := range strings.Split(params.Text, "\n") {
@@ -114,6 +106,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			urlText = urlText + "?" + strings.Join(paramsText, "&")
 		}
 
+		// prepare body
 		var body io.Reader
 		if bodyType.Selected == BODY_TYPE_NONE {
 			body = strings.NewReader(string(""))
@@ -124,11 +117,15 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		} else if bodyType.Selected == BODY_TYPE_RAW {
 			body = strings.NewReader(bodyContent.Text)
 		}
+
+		// create request
 		req, err := http.NewRequest(restMethod.Selected, urlText, body)
 		if err != nil {
 			errorPopUp(canvas, err)
 			return
 		}
+
+		// parse form if applicable
 		if bodyType.Selected == BODY_TYPE_FORM {
 			err = req.ParseForm()
 			if err != nil {
@@ -137,6 +134,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			}
 		}
 
+		// set headers
 		for _, line := range strings.Split(headers.Text, "\n") {
 			if line == "" {
 				continue
@@ -151,6 +149,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			}
 		}
 
+		// send request
 		client := &http.Client{}
 		resp, err := client.Do(req)
 		if err != nil {
@@ -159,21 +158,28 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		}
 		defer resp.Body.Close()
 
-		// Read and print the response body
+		// read response
 		responseBodyContent, err := io.ReadAll(resp.Body)
 		if err != nil {
 			errorPopUp(canvas, err)
 			return
 		}
+
+		// report response
 		responseStatus.SetText(resp.Status)
+
+		// TODO: use the following to intelligently format response,
+		// possibly also format body that we're sending out whenever we save and/or hit send
+		// http.DetectContentType(responseBodyContent)
+
 		responseBody.SetText(string(responseBodyContent))
 	})
 	controls := container.NewBorder(nil, nil, restMethod, sendButton, url)
 
 	requestPane := container.NewAppTabs(
-		container.NewTabItem("Params", params),
-		container.NewTabItem("Headers", headers),
-		container.NewTabItem("Body", bodyPane))
+		container.NewTabItem(TABS_PARAMS, params),
+		container.NewTabItem(TABS_HEADERS, headers),
+		container.NewTabItem(TABS_BODY, bodyPane))
 	responsePane := container.NewBorder(responseStatus, nil, nil, nil, responseBody)
 	requestAndResponse := container.NewHSplit(requestPane, responsePane)
 
@@ -184,12 +190,12 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 
 func main() {
 	vdatApp := app.New()
-	vdatWindow := vdatApp.NewWindow("vdat")
+	vdatWindow := vdatApp.NewWindow(APP_NAME)
 
 	tabs := container.NewAppTabs()
 
 	tabTitle := widget.NewEntry()
-	tabTitle.SetPlaceHolder("<request title>")
+	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
 
 	tabs.OnSelected = func(ti *container.TabItem) {
 		tabTitle.SetText(tabs.Selected().Text)
@@ -201,13 +207,13 @@ func main() {
 			tabs.Refresh()
 		}
 	}
-	saveButton := widget.NewButton("SAVE", nil)
-	newTabButton := widget.NewButton("NEW", func() {
-		newTab := container.NewTabItem("untitled", newTabContent(vdatWindow.Canvas()))
+	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, nil)
+	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
+		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent(vdatWindow.Canvas()))
 		tabs.Append(newTab)
 		tabs.Select(newTab)
 	})
-	closeTabButton := widget.NewButton("CLOSE", func() {
+	closeTabButton := widget.NewButton(CLOSE_BUTTON_TEXT, func() {
 		if len(tabs.Items) >= 2 {
 			tabs.RemoveIndex(tabs.SelectedIndex())
 		}
