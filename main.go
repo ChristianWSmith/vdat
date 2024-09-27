@@ -98,7 +98,8 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 				if key != "" && validRunes(key) && validRunes(value) {
 					paramsText = append(paramsText, key+"="+value)
 				} else {
-					errorPopUp(canvas, errors.New(fmt.Sprint("Error with param: ", key, "=", value)))
+					errorPopUp(canvas, errors.New(fmt.Sprint("Error with param entry: ", key, "=", value)))
+					return
 				}
 			}
 		}
@@ -123,7 +124,8 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 					if key != "" && validRunes(key) && validRunes(value) {
 						bodyText = append(paramsText, key+"="+value)
 					} else {
-						errorPopUp(canvas, errors.New(fmt.Sprint("Error with body: ", key, "=", value)))
+						errorPopUp(canvas, errors.New(fmt.Sprint("Error with body entry: ", key, "=", value)))
+						return
 					}
 				}
 			}
@@ -161,7 +163,8 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 				if key != "" && validRunes(key) && validRunes(value) {
 					req.Header.Set(key, value)
 				} else {
-					errorPopUp(canvas, errors.New(fmt.Sprint("Error with header: ", key, "=", value)))
+					errorPopUp(canvas, errors.New(fmt.Sprint("Error with header entry: ", key, "=", value)))
+					return
 				}
 			}
 		}
