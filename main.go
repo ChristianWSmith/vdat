@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/go-gl/glfw/v3.3/glfw"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -252,7 +254,17 @@ func main() {
 
 	vdatWindow.SetContent(vdatContent)
 
-	vdatWindow.Resize(fyne.NewSize(800, 450))
+	defer glfw.Terminate()
+	monitor := glfw.GetPrimaryMonitor()
+	if monitor == nil {
+		panic("No monitor.")
+	}
+	mode := monitor.GetVideoMode()
+	if mode == nil {
+		panic("No video mode.")
+	}
+
+	vdatWindow.Resize(fyne.NewSize(float32(mode.Width*2/3), float32(mode.Height*2/3)))
 	newTabButton.OnTapped()
 	vdatWindow.ShowAndRun()
 }
