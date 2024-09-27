@@ -52,7 +52,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	headers.SetPlaceHolder("header1 <tab> value1\nheader2 <tab> value2")
 	params := widget.NewMultiLineEntry()
 	params.TextStyle.Monospace = true
-	params.SetPlaceHolder("param1 <tab> value1\nparam2 <tab> value2")
+	params.SetPlaceHolder("param1=value1\nparam2=value2")
 	bodyContent := widget.NewMultiLineEntry()
 	bodyContent.TextStyle.Monospace = true
 	bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
@@ -63,9 +63,10 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			if value == "FORM" {
 				bodyContent.SetPlaceHolder("body1=value1\nbody2=value2")
 			} else if value == "MULTIPART FORM" {
-
+				// TODO: figure out proper placeholder
+				bodyContent.SetPlaceHolder("TODO")
 			} else if value == "RAW" {
-				bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
+				bodyContent.SetPlaceHolder("{\n    \"body1\": \"value1\"\n    \"body2\": \"value2\"\n}")
 			}
 		}
 	})
@@ -99,7 +100,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 			if line == "" {
 				continue
 			}
-			keyValue := strings.Split(line, "\t")
+			keyValue := strings.Split(line, "=")
 			if len(keyValue) == 2 && keyValue[0] != "" && validRunes(keyValue[0]) && validRunes(keyValue[1]) {
 				paramsText = append(paramsText, keyValue[0]+"="+keyValue[1])
 			} else {
@@ -113,7 +114,14 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		var body io.Reader
 		if bodyType.Selected == "NONE" {
 			body = strings.NewReader(string(""))
-		} else {
+		} else if bodyType.Selected == "FORM" {
+			if len(bodyContent.Text) != 0 {
+				body = strings.NewReader(strings.Join(strings.Split(bodyContent.Text, "\n"), "&"))
+			}
+		} else if bodyType.Selected == "MULTIPART FORM" {
+			// TODO: make this not raw
+			body = strings.NewReader(bodyContent.Text)
+		} else if bodyType.Selected == "RAW" {
 			body = strings.NewReader(bodyContent.Text)
 		}
 		req, err := http.NewRequest(restMethod.Selected, urlText, body)
