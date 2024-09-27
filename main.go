@@ -20,16 +20,20 @@ func main() {
 	}
 
 	tabTitle.OnChanged = func(s string) {
-		tabs.Selected().Text = s
-		tabs.Refresh()
+		if tabs.Selected() != nil {
+			tabs.Selected().Text = s
+			tabs.Refresh()
+		}
 	}
-
 	newTabButton := widget.NewButton("NEW", func() {
 		newTab := container.NewTabItem("untitled", widget.NewLabel(""))
 		tabs.Append(newTab)
+		tabs.Select(newTab)
 	})
 	closeTabButton := widget.NewButton("CLOSE", func() {
-		tabs.RemoveIndex(tabs.SelectedIndex())
+		if len(tabs.Items) >= 2 {
+			tabs.RemoveIndex(tabs.SelectedIndex())
+		}
 	})
 	tabControlButtons := container.NewHBox(newTabButton, closeTabButton)
 	tabControls := container.NewBorder(nil, nil, nil, tabControlButtons, tabTitle)
@@ -39,5 +43,6 @@ func main() {
 	vdatWindow.SetContent(tabsWithControls)
 
 	vdatWindow.Resize(fyne.NewSize(800, 450))
+	newTabButton.OnTapped()
 	vdatWindow.ShowAndRun()
 }
