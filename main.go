@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 
@@ -36,7 +37,7 @@ func containsRune(slice []rune, element rune) bool {
 	return false
 }
 
-func validHeader(value string) bool {
+func validRunes(value string) bool {
 	for _, r := range value {
 		if !containsRune(VALID_HEADER_CHARACTERS, r) {
 			return false
@@ -49,9 +50,21 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	headers := widget.NewMultiLineEntry()
 	headers.TextStyle.Monospace = true
 	headers.SetPlaceHolder("header1 <tab> value1\nheader2 <tab> value2")
-	body := widget.NewMultiLineEntry()
-	body.TextStyle.Monospace = true
-	body.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
+	params := widget.NewMultiLineEntry()
+	params.TextStyle.Monospace = true
+	params.SetPlaceHolder("param1 <tab> value1\nparam2 <tab> value2")
+	bodyContent := widget.NewMultiLineEntry()
+	bodyContent.TextStyle.Monospace = true
+	bodyContent.SetPlaceHolder("{\n    \"body\": \"value\"\n}")
+	bodyType := widget.NewSelect([]string{"FORM", "MULTIPART FORM", "RAW", "NONE"}, func(value string) {
+		if value == "NONE" {
+			bodyContent.Disable()
+		} else {
+			bodyContent.Enable()
+		}
+	})
+	bodyType.SetSelectedIndex(0)
+	bodyPane := container.NewBorder(bodyType, nil, nil, nil, bodyContent)
 	responseStatus := widget.NewEntry()
 	responseStatus.TextStyle.Monospace = true
 	responseStatus.SetPlaceHolder("<response status>")
@@ -74,10 +87,46 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 	url := widget.NewEntry()
 	url.SetPlaceHolder("https://www.website.com/path/to/endpoint")
 	sendButton := widget.NewButton("SEND", func() {
-		req, err := http.NewRequest(restMethod.Selected, url.Text, strings.NewReader(body.Text))
+		urlText := url.Text
+		paramsText := []string{}
+		for _, line := range strings.Split(headers.Text, "\n") {
+			if line == "" {
+				continue
+			}
+			keyValue := strings.Split(line, "\t")
+			if len(keyValue) == 2 && keyValue[0] != "" && validRunes(keyValue[0]) && validRunes(keyValue[1]) {
+				paramsText = append(paramsText, keyValue[0]+"="+keyValue[1])
+			} else {
+				errorPopUp(canvas, errors.New(fmt.Sprint("Error with param: ", keyValue)))
+			}
+		}
+		if len(paramsText) != 0 {
+			urlText = urlText + "?" + strings.Join(paramsText, "&")
+		}
+
+		var body io.Reader
+		if bodyType.Selected == "NONE" {
+			body = strings.NewReader(string(""))
+		} else {
+			body = strings.NewReader(bodyContent.Text)
+		}
+		req, err := http.NewRequest(restMethod.Selected, urlText, body)
 		if err != nil {
 			errorPopUp(canvas, err)
 			return
+		}
+		if bodyType.Selected == "FORM" {
+			err = req.ParseForm()
+			if err != nil {
+				errorPopUp(canvas, err)
+				return
+			}
+		} else if bodyType.Selected == "MULTIPART FORM" {
+			err = req.ParseMultipartForm(math.MaxInt64)
+			if err != nil {
+				errorPopUp(canvas, err)
+				return
+			}
 		}
 
 		for _, line := range strings.Split(headers.Text, "\n") {
@@ -85,7 +134,7 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 				continue
 			}
 			keyValue := strings.Split(line, "\t")
-			if len(keyValue) == 2 && keyValue[0] != "" && validHeader(keyValue[0]) && validHeader(keyValue[1]) {
+			if len(keyValue) == 2 && keyValue[0] != "" && validRunes(keyValue[0]) && validRunes(keyValue[1]) {
 				req.Header.Set(keyValue[0], keyValue[1])
 			} else {
 				errorPopUp(canvas, errors.New(fmt.Sprint("Error with header: ", keyValue)))
@@ -101,19 +150,22 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 		defer resp.Body.Close()
 
 		// Read and print the response body
-		body, err := io.ReadAll(resp.Body)
+		responseBodyContent, err := io.ReadAll(resp.Body)
 		if err != nil {
 			errorPopUp(canvas, err)
 			return
 		}
 		responseStatus.SetText(resp.Status)
-		responseBody.SetText(string(body))
+		responseBody.SetText(string(responseBodyContent))
 	})
 	controls := container.NewBorder(nil, nil, restMethod, sendButton, url)
 
-	headersAndBody := container.NewVSplit(headers, body)
-	responseCodeAndResponse := container.NewBorder(responseStatus, nil, nil, nil, responseBody)
-	requestAndResponse := container.NewHSplit(headersAndBody, responseCodeAndResponse)
+	requestPane := container.NewAppTabs(
+		container.NewTabItem("Params", params),
+		container.NewTabItem("Headers", headers),
+		container.NewTabItem("Body", bodyPane))
+	responsePane := container.NewBorder(responseStatus, nil, nil, nil, responseBody)
+	requestAndResponse := container.NewHSplit(requestPane, responsePane)
 
 	content := container.NewBorder(controls, nil, nil, nil, requestAndResponse)
 
