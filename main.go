@@ -154,7 +154,9 @@ func validRunes(value string) bool {
 	return true
 }
 
-func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
+type SaveCallback func(string) error
+
+func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback) {
 	headers := widget.NewMultiLineEntry()
 	headers.TextStyle.Monospace = true
 	headers.SetPlaceHolder(HEADERS_PLACEHOLDER)
@@ -315,44 +317,17 @@ func newTabContent(canvas fyne.Canvas) fyne.CanvasObject {
 
 	content := container.NewBorder(controls, nil, nil, nil, requestAndResponse)
 
-	return content
+	saveCallback := func(filename string) error {
+		// TODO: save to the file
+		return nil
+	}
+
+	return content, saveCallback
 }
 
 func main() {
 	vdatApp := app.New()
 	vdatWindow := vdatApp.NewWindow(APP_NAME)
-
-	tabs := container.NewAppTabs()
-
-	tabTitle := widget.NewEntry()
-	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
-
-	tabs.OnSelected = func(ti *container.TabItem) {
-		tabTitle.SetText(tabs.Selected().Text)
-	}
-
-	tabTitle.OnChanged = func(s string) {
-		if tabs.Selected() != nil {
-			tabs.Selected().Text = s
-			tabs.Refresh()
-		}
-	}
-	// TODO: save button function
-	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, nil)
-	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
-		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent(vdatWindow.Canvas()))
-		tabs.Append(newTab)
-		tabs.Select(newTab)
-	})
-	closeTabButton := widget.NewButton(CLOSE_BUTTON_TEXT, func() {
-		if len(tabs.Items) >= 2 {
-			tabs.RemoveIndex(tabs.SelectedIndex())
-		}
-	})
-	tabControlButtons := container.NewHBox(saveButton, newTabButton, closeTabButton)
-	tabControls := container.NewBorder(nil, nil, nil, tabControlButtons, tabTitle)
-
-	tabsWithControls := container.NewBorder(tabControls, nil, nil, nil, tabs)
 
 	tree := widget.NewTree(
 		func(id widget.TreeNodeID) (children []widget.TreeNodeID) {
@@ -427,6 +402,42 @@ func main() {
 	})
 	fileControls := container.NewBorder(nil, nil, nil, deleteButton, newFolderButton)
 	filePane := container.NewBorder(fileControls, nil, nil, nil, fileTree)
+
+	tabs := container.NewAppTabs()
+
+	tabTitle := widget.NewEntry()
+	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
+
+	tabs.OnSelected = func(ti *container.TabItem) {
+		tabTitle.SetText(tabs.Selected().Text)
+	}
+
+	tabTitle.OnChanged = func(s string) {
+		if tabs.Selected() != nil {
+			tabs.Selected().Text = s
+			tabs.Refresh()
+		}
+	}
+	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
+	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, func() {
+		tabSaveCallbacks[tabs.Selected()](selectedFolder)
+	})
+	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
+		newTabContent, saveCallback := makeNewTabContent(vdatWindow.Canvas())
+		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
+		tabSaveCallbacks[newTab] = saveCallback
+		tabs.Append(newTab)
+		tabs.Select(newTab)
+	})
+	closeTabButton := widget.NewButton(CLOSE_BUTTON_TEXT, func() {
+		if len(tabs.Items) >= 2 {
+			tabs.RemoveIndex(tabs.SelectedIndex())
+		}
+	})
+	tabControlButtons := container.NewHBox(saveButton, newTabButton, closeTabButton)
+	tabControls := container.NewBorder(nil, nil, nil, tabControlButtons, tabTitle)
+
+	tabsWithControls := container.NewBorder(tabControls, nil, nil, nil, tabs)
 
 	vdatContent := container.NewHSplit(filePane, tabsWithControls)
 	vdatContent.SetOffset(0.25)
