@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -154,8 +155,17 @@ func validRunes(value string) bool {
 	return true
 }
 
-type SaveCallback func(string) error
-type LoadCallback func(string) error
+type SaveCallback func(string, string) error
+type LoadCallback func(string) (string, error)
+type VdatRequest struct {
+	Headers     string `json:"Headers"`
+	Params      string `json:"Params"`
+	BodyContent string `json:"BodyContent"`
+	BodyType    string `json:"BodyType"`
+	Url         string `json:"Url"`
+	Title       string `json:"Title"`
+	RestMethod  string `json:"RestMethod"`
+}
 
 func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, LoadCallback) {
 	headers := widget.NewMultiLineEntry()
@@ -318,14 +328,55 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 
 	content := container.NewBorder(controls, nil, nil, nil, requestAndResponse)
 
-	saveCallback := func(dirname string) error {
-		// TODO: save to the file
-		return nil
+	saveCallback := func(dirname string, title string) error {
+		vdatRequest := VdatRequest{
+			Headers:     headers.Text,
+			Params:      params.Text,
+			BodyContent: bodyContent.Text,
+			BodyType:    bodyType.Selected,
+			Url:         url.Text,
+			Title:       title,
+			RestMethod:  restMethod.Selected,
+		}
+
+		// Create a file to save the struct
+		file, err := os.Create(filepath.Join(dirname, fmt.Sprint(title, ".json")))
+		defer file.Close()
+		if err != nil {
+			return err
+		}
+
+		// Serialize the struct to JSON
+		encoder := json.NewEncoder(file)
+		err = encoder.Encode(vdatRequest)
+		return err
 	}
 
-	loadCallback := func(filename string) error {
-		// TODO: load from file
-		return nil
+	loadCallback := func(filename string) (string, error) {
+		file, err := os.Open(filename)
+		if err != nil {
+			return "", err
+		}
+		defer file.Close()
+
+		// Create an instance of the struct to load data into
+		vdatRequest := VdatRequest{}
+
+		// Create a JSON decoder and decode the file content into the struct
+		decoder := json.NewDecoder(file)
+		err = decoder.Decode(&vdatRequest)
+		if err != nil {
+			return "", err
+		}
+
+		headers.SetText(vdatRequest.Headers)
+		params.SetText(vdatRequest.Params)
+		bodyContent.SetText(vdatRequest.BodyContent)
+		bodyType.SetSelected(vdatRequest.BodyType)
+		url.SetText(vdatRequest.Url)
+		restMethod.SetSelected(vdatRequest.RestMethod)
+
+		return vdatRequest.Title, nil
 	}
 
 	return content, saveCallback, loadCallback
@@ -335,6 +386,7 @@ func main() {
 	vdatApp := app.New()
 	vdatWindow := vdatApp.NewWindow(APP_NAME)
 	tabs := container.NewAppTabs()
+	tabTitle := widget.NewEntry()
 	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
 
 	tree := widget.NewTree(
@@ -373,13 +425,14 @@ func main() {
 		} else {
 			selectedFolder = filepath.Dir(treeSelected)
 			newTabContent, saveCallback, loadCallback := makeNewTabContent(vdatWindow.Canvas())
-			err := loadCallback(uid)
+			title, err := loadCallback(uid)
 			if err != nil {
 				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", uid)))
 				return
 			}
 			newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
 			tabSaveCallbacks[newTab] = saveCallback
+			tabTitle.SetText(title)
 			tabs.Append(newTab)
 			tabs.Select(newTab)
 		}
@@ -420,7 +473,6 @@ func main() {
 	fileControls := container.NewBorder(nil, nil, nil, deleteButton, newFolderButton)
 	filePane := container.NewBorder(fileControls, nil, nil, nil, fileTree)
 
-	tabTitle := widget.NewEntry()
 	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
 
 	tabs.OnSelected = func(ti *container.TabItem) {
@@ -434,7 +486,13 @@ func main() {
 		}
 	}
 	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, func() {
-		tabSaveCallbacks[tabs.Selected()](selectedFolder)
+		err := tabSaveCallbacks[tabs.Selected()](selectedFolder, tabTitle.Text)
+		if err != nil {
+			errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Save failed for: ", tabTitle)))
+			return
+		}
+		tree.RefreshItem(selectedFolder)
+
 	})
 	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
 		newTabContent, saveCallback, _ := makeNewTabContent(vdatWindow.Canvas())
