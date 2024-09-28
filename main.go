@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
@@ -12,8 +15,67 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
+
+func checkDirExists(dir string) (bool, error) {
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return false, nil // Directory does not exist
+	}
+	if err != nil {
+		return false, err // Some other error occurred
+	}
+	return info.IsDir(), nil // Return true if it is a directory
+}
+
+func getVdatDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	var vdatDir string
+	var docDir string
+
+	switch runtime.GOOS {
+	case "linux":
+		docDir = os.Getenv("XDG_DOCUMENTS_DIR")
+		if docDir == "" {
+			docDir = filepath.Join(home, "Documents")
+		}
+	default:
+		docDir = filepath.Join(home, "Documents")
+	}
+	vdatDir = filepath.Join(docDir, APP_NAME)
+	err = os.MkdirAll(vdatDir, os.ModePerm)
+	return vdatDir, err
+}
+
+func fileTreeNodeName(id widget.TreeNodeID) string {
+	return filepath.Base(id)
+}
+
+func fileTreeIsBranch(id widget.TreeNodeID) bool {
+	fileInfo, err := os.Stat(id)
+	if err != nil {
+		return false
+	}
+	return fileInfo.IsDir()
+}
+
+func fileTreeLoadChildren(id widget.TreeNodeID) (children []widget.TreeNodeID) {
+	files, err := os.ReadDir(id)
+	if err != nil {
+		return
+	}
+	for _, file := range files {
+		childPath := filepath.Join(id, file.Name())
+		children = append(children, childPath)
+	}
+	return
+}
 
 func smartFormat(content []byte) string {
 	// TODO: use the following to intelligently format response,
@@ -28,6 +90,50 @@ func errorPopUp(canvas fyne.Canvas, err error) {
 	okButton := widget.NewButton(OK_BUTTON_TEXT, func() { popUp.Hide() })
 	modalContent.Add(okButton)
 	popUp.Show()
+}
+
+func getStringPopUp(canvas fyne.Canvas, message string) <-chan string {
+	entry := widget.NewEntry()
+	modalContent := container.NewVBox(widget.NewLabel(message), entry)
+	popUp := widget.NewModalPopUp(modalContent, canvas)
+
+	resultCh := make(chan string) // Channel to capture the result
+
+	okButton := widget.NewButton(OK_BUTTON_TEXT, func() {
+		resultCh <- entry.Text // Send the entry text to the channel
+		popUp.Hide()           // Hide the popup
+	})
+
+	modalContent.Add(okButton)
+	popUp.Show()
+
+	return resultCh // Return the channel
+}
+
+func confirmationPopup(canvas fyne.Canvas, message string) <-chan bool {
+	buttons := container.NewHBox()
+	modalContent := container.NewBorder(nil, buttons, nil, nil, widget.NewLabel(message))
+	popUp := widget.NewModalPopUp(modalContent, canvas)
+
+	resultCh := make(chan bool) // Channel to capture the result
+
+	yesButton := widget.NewButton(YES_BUTTON_TEXT, func() {
+		resultCh <- true // Send the entry text to the channel
+		popUp.Hide()     // Hide the popup
+	})
+	noButton := widget.NewButton(NO_BUTTON_TEXT, func() {
+		resultCh <- false // Send the entry text to the channel
+		popUp.Hide()      // Hide the popup
+	})
+	buttons.Add(layout.NewSpacer())
+	buttons.Add(yesButton)
+	buttons.Add(noButton)
+	buttons.Add(layout.NewSpacer())
+
+	modalContent.Add(buttons)
+	popUp.Show()
+
+	return resultCh // Return the channel
 }
 
 func containsRune(slice []rune, element rune) bool {
@@ -231,6 +337,7 @@ func main() {
 			tabs.Refresh()
 		}
 	}
+	// TODO: save button function
 	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, nil)
 	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
 		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent(vdatWindow.Canvas()))
@@ -247,9 +354,81 @@ func main() {
 
 	tabsWithControls := container.NewBorder(tabControls, nil, nil, nil, tabs)
 
-	fileTree := widget.NewLabel("TODO: File Tree")
+	tree := widget.NewTree(
+		func(id widget.TreeNodeID) (children []widget.TreeNodeID) {
+			return fileTreeLoadChildren(id)
+		},
+		func(id widget.TreeNodeID) bool {
+			return fileTreeIsBranch(id)
+		},
+		func(branch bool) fyne.CanvasObject {
+			return widget.NewLabel("")
+		},
+		func(id widget.TreeNodeID, branch bool, obj fyne.CanvasObject) {
+			obj.(*widget.Label).SetText(fileTreeNodeName(id))
+		},
+	)
 
-	vdatContent := container.NewHSplit(fileTree, tabsWithControls)
+	var err error
+	tree.Root, err = getVdatDir()
+	tree.Select(tree.Root)
+	if err != nil {
+		panic("No vdat directory.")
+	}
+
+	treeSelected := tree.Root
+	selectedFolder := tree.Root
+
+	tree.OnSelected = func(uid widget.TreeNodeID) {
+		treeSelected = uid
+		isDir, err := checkDirExists(treeSelected)
+		if err != nil {
+			errorPopUp(vdatWindow.Canvas(), err)
+		}
+		if isDir {
+			selectedFolder = treeSelected
+		} else {
+			selectedFolder = filepath.Dir(treeSelected)
+			// TODO: load file
+		}
+	}
+
+	// Create a scrollable container for the tree
+	fileTree := container.NewScroll(tree)
+
+	deleteButton := widget.NewButton("DELETE", func() {
+		resultCh := confirmationPopup(vdatWindow.Canvas(), fmt.Sprint("Are you sure you want to delete: ", treeSelected))
+		go func() {
+			result := <-resultCh
+			if result {
+				err := os.RemoveAll(treeSelected)
+				if err != nil {
+					errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to delete: ", treeSelected)))
+					return
+				}
+				tree.RefreshItem(selectedFolder)
+			}
+		}()
+	})
+
+	newFolderButton := widget.NewButton("NEW FOLDER", func() {
+		resultCh := getStringPopUp(vdatWindow.Canvas(), "New Folder Name")
+		go func() {
+			result := <-resultCh
+			newFolder := filepath.Join(selectedFolder, result)
+
+			err = os.MkdirAll(newFolder, os.ModePerm)
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), err)
+				return
+			}
+			tree.RefreshItem(selectedFolder)
+		}()
+	})
+	fileControls := container.NewBorder(nil, nil, nil, deleteButton, newFolderButton)
+	filePane := container.NewBorder(fileControls, nil, nil, nil, fileTree)
+
+	vdatContent := container.NewHSplit(filePane, tabsWithControls)
 	vdatContent.SetOffset(0.25)
 
 	vdatWindow.SetContent(vdatContent)
