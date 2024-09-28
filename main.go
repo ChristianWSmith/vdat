@@ -340,7 +340,8 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		}
 
 		// Create a file to save the struct
-		file, err := os.Create(filepath.Join(dirname, fmt.Sprint(title, ".json")))
+		filename := filepath.Join(dirname, fmt.Sprint(restMethod.Selected, " - ", title))
+		file, err := os.Create(filename)
 		defer file.Close()
 		if err != nil {
 			return err
@@ -430,9 +431,8 @@ func main() {
 				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", uid)))
 				return
 			}
-			newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
+			newTab := container.NewTabItem(title, newTabContent)
 			tabSaveCallbacks[newTab] = saveCallback
-			tabTitle.SetText(title)
 			tabs.Append(newTab)
 			tabs.Select(newTab)
 		}
@@ -452,6 +452,7 @@ func main() {
 					return
 				}
 				tree.RefreshItem(selectedFolder)
+				tree.Select(filepath.Dir(treeSelected))
 			}
 		}()
 	})
