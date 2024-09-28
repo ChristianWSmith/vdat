@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/yosssi/gohtml"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -79,10 +80,18 @@ func fileTreeLoadChildren(id widget.TreeNodeID) (children []widget.TreeNodeID) {
 }
 
 func smartFormat(content []byte) string {
-	// TODO: use the following to intelligently format response,
-	// possibly also format body that we're sending out whenever we save and/or hit send
-	// http.DetectContentType(responseBodyContent)
-	return string(content)
+
+	var rawJson json.RawMessage
+	err := json.Unmarshal(content, &rawJson)
+	if err == nil {
+		var prettyJson []byte
+		prettyJson, err = json.MarshalIndent(&rawJson, "", "  ")
+		if err != nil {
+			return string(content)
+		}
+		return string(prettyJson)
+	}
+	return gohtml.Format(string(content))
 }
 
 func errorPopUp(canvas fyne.Canvas, err error) {
