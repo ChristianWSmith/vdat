@@ -527,7 +527,7 @@ func main() {
 	}
 
 	vdatWindow.Resize(fyne.NewSize(float32(mode.Width*2/3), float32(mode.Height*2/3)))
+	vdatWindow.Canvas().Refresh(vdatContent)
 	newTabButton.OnTapped()
-	vdatContent.Refresh()
 	vdatWindow.ShowAndRun()
 }
