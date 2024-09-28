@@ -318,7 +318,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 
 	content := container.NewBorder(controls, nil, nil, nil, requestAndResponse)
 
-	saveCallback := func(filename string) error {
+	saveCallback := func(dirname string) error {
 		// TODO: save to the file
 		return nil
 	}
@@ -470,5 +470,6 @@ func main() {
 
 	vdatWindow.Resize(fyne.NewSize(float32(mode.Width*2/3), float32(mode.Height*2/3)))
 	newTabButton.OnTapped()
+	vdatContent.Refresh()
 	vdatWindow.ShowAndRun()
 }
