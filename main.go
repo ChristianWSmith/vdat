@@ -155,8 +155,9 @@ func validRunes(value string) bool {
 }
 
 type SaveCallback func(string) error
+type LoadCallback func(string) error
 
-func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback) {
+func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, LoadCallback) {
 	headers := widget.NewMultiLineEntry()
 	headers.TextStyle.Monospace = true
 	headers.SetPlaceHolder(HEADERS_PLACEHOLDER)
@@ -322,12 +323,19 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback) {
 		return nil
 	}
 
-	return content, saveCallback
+	loadCallback := func(filename string) error {
+		// TODO: load from file
+		return nil
+	}
+
+	return content, saveCallback, loadCallback
 }
 
 func main() {
 	vdatApp := app.New()
 	vdatWindow := vdatApp.NewWindow(APP_NAME)
+	tabs := container.NewAppTabs()
+	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
 
 	tree := widget.NewTree(
 		func(id widget.TreeNodeID) (children []widget.TreeNodeID) {
@@ -364,7 +372,16 @@ func main() {
 			selectedFolder = treeSelected
 		} else {
 			selectedFolder = filepath.Dir(treeSelected)
-			// TODO: load file
+			newTabContent, saveCallback, loadCallback := makeNewTabContent(vdatWindow.Canvas())
+			err := loadCallback(uid)
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", uid)))
+				return
+			}
+			newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
+			tabSaveCallbacks[newTab] = saveCallback
+			tabs.Append(newTab)
+			tabs.Select(newTab)
 		}
 	}
 
@@ -403,8 +420,6 @@ func main() {
 	fileControls := container.NewBorder(nil, nil, nil, deleteButton, newFolderButton)
 	filePane := container.NewBorder(fileControls, nil, nil, nil, fileTree)
 
-	tabs := container.NewAppTabs()
-
 	tabTitle := widget.NewEntry()
 	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
 
@@ -418,12 +433,11 @@ func main() {
 			tabs.Refresh()
 		}
 	}
-	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
 	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, func() {
 		tabSaveCallbacks[tabs.Selected()](selectedFolder)
 	})
 	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
-		newTabContent, saveCallback := makeNewTabContent(vdatWindow.Canvas())
+		newTabContent, saveCallback, _ := makeNewTabContent(vdatWindow.Canvas())
 		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
 		tabSaveCallbacks[newTab] = saveCallback
 		tabs.Append(newTab)
