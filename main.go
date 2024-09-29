@@ -420,7 +420,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 				key, value, found := strings.Cut(line, "=")
 				if found {
 					if key != "" && validRunes(key) && validRunes(value) {
-						bodyText = append(paramsText, key+"="+value)
+						bodyText = append(bodyText, key+"="+value)
 					} else {
 						errorPopUp(canvas, errors.New(fmt.Sprint("Error with body entry: ", key, "=", value)))
 						return
@@ -428,7 +428,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 				}
 			}
 			finalBodyText := ""
-			if len(paramsText) != 0 {
+			if len(bodyText) != 0 {
 				finalBodyText = strings.Join(bodyText, "&")
 			}
 			body = strings.NewReader(finalBodyText)
