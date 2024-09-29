@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -20,6 +21,148 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 )
+
+func parseCurlCommand(curlCommand string) (VdatRequest, error) {
+	// Trim any extra spaces
+	curlCommand = strings.TrimSpace(curlCommand)
+
+	// Split the command into tokens
+	// Initialize a variable to store tokens
+	var tokens []string
+	var currentToken strings.Builder
+	inQuotesDouble := false
+	inQuotesSingle := false
+	escaped := false
+
+	// Tokenize the command while preserving quoted strings
+	for _, char := range curlCommand {
+		if escaped {
+			currentToken.WriteRune(char)
+			escaped = false
+			continue
+		}
+		switch char {
+		case '\\':
+			escaped = true
+		case '"':
+			if !inQuotesSingle {
+				inQuotesDouble = !inQuotesDouble // Toggle the inQuotesDouble flag
+			} else {
+				currentToken.WriteRune(char)
+			}
+		case '\'':
+			if !inQuotesDouble {
+				inQuotesSingle = !inQuotesSingle // Toggle the inQuotesSingle flag
+			} else {
+				currentToken.WriteRune(char)
+			}
+		case ' ':
+			if inQuotesDouble || inQuotesSingle {
+				currentToken.WriteRune(char) // Keep spaces inside any quotes
+			} else {
+				if currentToken.Len() > 0 {
+					tokens = append(tokens, currentToken.String())
+					currentToken.Reset()
+				}
+			}
+		default:
+			currentToken.WriteRune(char) // Append the current character to the token
+		}
+	}
+
+	// Append the last token if any
+	if currentToken.Len() > 0 {
+		tokens = append(tokens, currentToken.String())
+	}
+
+	if len(tokens) == 0 || tokens[0] != "curl" {
+		return VdatRequest{}, errors.New("invalid curl command format")
+	}
+
+	if len(tokens) == 0 || tokens[0] != "curl" {
+		return VdatRequest{}, errors.New("invalid curl command format")
+	}
+
+	var req VdatRequest
+	var bodyFlag bool
+	var contentType string
+
+	req.Title = TITLE_DEFAULT
+
+	// Process each token
+	for i := 1; i < len(tokens); i++ {
+		token := tokens[i]
+
+		switch token {
+		case "-X":
+			if i+1 < len(tokens) {
+				req.RestMethod = tokens[i+1]
+				i++ // Skip the method token
+				req.Url = strings.Trim(tokens[i+1], "\"")
+				i++ // Skip the URL token
+			}
+		case "-H":
+			if i+1 < len(tokens) {
+				header := tokens[i+1]
+				i++ // Skip the header value token
+				key, value, found := strings.Cut(header, ":")
+				if found {
+					key = strings.TrimSpace(key)
+					value = strings.TrimSpace(value)
+					if strings.ToLower(key) == "content-type" {
+						contentType = value
+					}
+					req.Headers += key + "=" + value + "\n"
+				} else {
+					return VdatRequest{}, errors.New(fmt.Sprint("invalid header: ", header))
+				}
+			}
+		case "-d":
+			if i+1 < len(tokens) {
+				req.BodyContent = tokens[i+1]
+				bodyFlag = true
+				i++ // Skip the body content token
+			}
+		default:
+			// Check if the token is a URL
+			if strings.HasPrefix(token, "http://") || strings.HasPrefix(token, "https://") || strings.HasPrefix(token, "\"http://") || strings.HasPrefix(token, "\"https://") {
+				req.Url = token
+			}
+		}
+	}
+
+	// Set default RestMethod if not specified
+	if req.RestMethod == "" {
+		req.RestMethod = "GET" // Default method
+	}
+
+	// Assuming JSON for the body type
+	if !bodyFlag {
+		req.BodyType = BODY_TYPE_NONE
+	} else if strings.ToLower(contentType) == "application/x-www-form-urlencoded" {
+		req.BodyType = BODY_TYPE_FORM
+		req.BodyContent = strings.Join(strings.Split(req.BodyContent, "&"), "\n")
+	} else {
+		req.BodyType = BODY_TYPE_RAW
+	}
+
+	parsedURL, err := url.Parse(req.Url)
+	if err != nil {
+		return VdatRequest{}, errors.New(fmt.Sprint("Error parsing URL:", req.Url))
+	}
+
+	// Get query parameters
+	queryParams := parsedURL.Query()
+
+	// Print query parameters
+	for key, values := range queryParams {
+		req.Params += strings.TrimSpace(key) + "=" + strings.TrimSpace(strings.Join(values, ",")) + "\n"
+	}
+	parsedURL.RawQuery = ""
+	req.Url = parsedURL.String()
+
+	return req, nil
+}
 
 func checkDirExists(dir string) (bool, error) {
 	info, err := os.Stat(dir)
@@ -104,6 +247,24 @@ func errorPopUp(canvas fyne.Canvas, err error) {
 
 func getStringPopUp(canvas fyne.Canvas, message string) <-chan string {
 	entry := widget.NewEntry()
+	modalContent := container.NewVBox(widget.NewLabel(message), entry)
+	popUp := widget.NewModalPopUp(modalContent, canvas)
+
+	resultCh := make(chan string) // Channel to capture the result
+
+	okButton := widget.NewButton(OK_BUTTON_TEXT, func() {
+		resultCh <- entry.Text // Send the entry text to the channel
+		popUp.Hide()           // Hide the popup
+	})
+
+	modalContent.Add(okButton)
+	popUp.Show()
+
+	return resultCh // Return the channel
+}
+
+func getMultilineStringPopUp(canvas fyne.Canvas, message string) <-chan string {
+	entry := widget.NewMultiLineEntry()
 	modalContent := container.NewVBox(widget.NewLabel(message), entry)
 	popUp := widget.NewModalPopUp(modalContent, canvas)
 
@@ -495,6 +656,44 @@ func main() {
 			tabs.Refresh()
 		}
 	}
+	importButton := widget.NewButton(IMPORT_BUTTON_TEXT, func() {
+		resultCh := getMultilineStringPopUp(vdatWindow.Canvas(), "Paste your curl command here")
+		go func() {
+			curlCommand := <-resultCh
+
+			tempFile, err := os.CreateTemp("", "vdat-*")
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), err)
+				return
+			}
+			defer os.Remove(tempFile.Name())
+
+			vdatRequest, err := parseCurlCommand(curlCommand)
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), err)
+				return
+			}
+
+			// Serialize the struct to JSON
+			encoder := json.NewEncoder(tempFile)
+			err = encoder.Encode(vdatRequest)
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), err)
+				return
+			}
+
+			newTabContent, saveCallback, loadCallback := makeNewTabContent(vdatWindow.Canvas())
+			title, err := loadCallback(tempFile.Name())
+			if err != nil {
+				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", tempFile.Name())))
+				return
+			}
+			newTab := container.NewTabItem(title, newTabContent)
+			tabSaveCallbacks[newTab] = saveCallback
+			tabs.Append(newTab)
+			tabs.Select(newTab)
+		}()
+	})
 	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, func() {
 		err := tabSaveCallbacks[tabs.Selected()](selectedFolder, tabTitle.Text)
 		if err != nil {
@@ -502,6 +701,7 @@ func main() {
 			return
 		}
 		tree.RefreshItem(selectedFolder)
+		tree.OpenBranch(selectedFolder)
 
 	})
 	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
@@ -516,7 +716,7 @@ func main() {
 			tabs.RemoveIndex(tabs.SelectedIndex())
 		}
 	})
-	tabControlButtons := container.NewHBox(saveButton, newTabButton, closeTabButton)
+	tabControlButtons := container.NewHBox(importButton, saveButton, newTabButton, closeTabButton)
 	tabControls := container.NewBorder(nil, nil, nil, tabControlButtons, tabTitle)
 
 	tabsWithControls := container.NewBorder(tabControls, nil, nil, nil, tabs)
