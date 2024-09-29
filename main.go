@@ -94,14 +94,20 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 		token := tokens[i]
 
 		switch token {
-		case "-X":
+		case "-X", "--request":
 			if i+1 < len(tokens) {
-				req.RestMethod = tokens[i+1]
-				i++ // Skip the method token
-				req.Url = strings.Trim(tokens[i+1], "\"")
-				i++ // Skip the URL token
+				if containsString(REST_METHODS, tokens[i+1]) {
+					req.RestMethod = tokens[i+1]
+					i++ // Skip the method token
+					req.Url = strings.Trim(tokens[i+1], "\"")
+					i++ // Skip the URL token
+				} else {
+					req.RestMethod = http.MethodGet
+					req.Url = strings.Trim(tokens[i+1], "\"")
+					i++
+				}
 			}
-		case "-H":
+		case "-H", "--header":
 			if i+1 < len(tokens) {
 				header := tokens[i+1]
 				i++ // Skip the header value token
@@ -117,7 +123,7 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 					return VdatRequest{}, errors.New(fmt.Sprint("invalid header: ", header))
 				}
 			}
-		case "-d":
+		case "-d", "--data":
 			if i+1 < len(tokens) {
 				req.BodyContent = tokens[i+1]
 				bodyFlag = true
@@ -316,6 +322,15 @@ func containsRune(slice []rune, element rune) bool {
 	return false
 }
 
+func containsString(slice []string, element string) bool {
+	for _, item := range slice {
+		if item == element {
+			return true
+		}
+	}
+	return false
+}
+
 func validRunes(value string) bool {
 	for _, r := range value {
 		if !containsRune(VALID_RUNES, r) {
@@ -369,16 +384,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 	responseBody.SetPlaceHolder(RESPONSE_BODY_PLACEHOLDER)
 	responseBody.Wrapping = fyne.TextWrapWord
 
-	restMethod := widget.NewSelect([]string{
-		http.MethodGet,
-		http.MethodHead,
-		http.MethodPost,
-		http.MethodPut,
-		http.MethodPatch,
-		http.MethodDelete,
-		http.MethodConnect,
-		http.MethodOptions,
-		http.MethodTrace}, nil)
+	restMethod := widget.NewSelect(REST_METHODS, nil)
 	restMethod.SetSelectedIndex(0)
 	url := widget.NewEntry()
 	url.SetPlaceHolder(URL_PLACEHOLDER)

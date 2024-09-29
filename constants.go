@@ -1,10 +1,23 @@
 package main
 
+import "net/http"
+
 const APP_NAME = "vdat"
 
 const BODY_TYPE_FORM = "FORM"
 const BODY_TYPE_RAW = "RAW"
 const BODY_TYPE_NONE = "NONE"
+
+var REST_METHODS = []string{
+	http.MethodGet,
+	http.MethodHead,
+	http.MethodPost,
+	http.MethodPut,
+	http.MethodPatch,
+	http.MethodDelete,
+	http.MethodConnect,
+	http.MethodOptions,
+	http.MethodTrace}
 
 var VALID_RUNES = []rune{
 	'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
