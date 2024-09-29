@@ -555,7 +555,14 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 
 func main() {
 	vdatApp := app.New()
-	vdatWindow := vdatApp.NewWindow(APP_NAME)
+	var err error
+
+	// Load the icon from a file
+	iconResource, err := fyne.LoadResourceFromPath("icon.png")
+	if err == nil {
+		vdatApp.SetIcon(iconResource)
+	}
+	vdatWindow := vdatApp.NewWindow("Very Dumb API Tester")
 	tabs := container.NewAppTabs()
 	tabTitle := widget.NewEntry()
 	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
@@ -575,7 +582,6 @@ func main() {
 		},
 	)
 
-	var err error
 	tree.Root, err = getVdatDir()
 	tree.Select(tree.Root)
 	if err != nil {
