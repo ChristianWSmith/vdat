@@ -714,6 +714,7 @@ func main() {
 	closeTabButton := widget.NewButton(CLOSE_BUTTON_TEXT, func() {
 		if len(tabs.Items) >= 2 {
 			tabs.RemoveIndex(tabs.SelectedIndex())
+			tabTitle.SetText(tabs.Selected().Text)
 		}
 	})
 	tabControlButtons := container.NewHBox(importButton, saveButton, newTabButton, closeTabButton)
