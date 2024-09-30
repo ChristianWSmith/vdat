@@ -420,6 +420,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		if bodyType.Selected == BODY_TYPE_NONE {
 			body = strings.NewReader(string(""))
 		} else if bodyType.Selected == BODY_TYPE_RAW {
+			bodyContent.Text = smartFormat([]byte(bodyContent.Text))
 			body = strings.NewReader(bodyContent.Text)
 		} else if bodyType.Selected == BODY_TYPE_FORM {
 			bodyText := []string{}
