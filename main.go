@@ -118,7 +118,7 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 					if strings.ToLower(key) == "content-type" {
 						contentType = value
 					}
-					req.Headers += key + "=" + value + "\n"
+					req.Headers += key + "\t" + value + "\n"
 				} else {
 					return VdatRequest{}, errors.New(fmt.Sprint("invalid header: ", header))
 				}
