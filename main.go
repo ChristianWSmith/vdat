@@ -125,7 +125,11 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 			}
 		case "-d", "--data":
 			if i+1 < len(tokens) {
-				req.BodyContent = tokens[i+1]
+				if req.BodyContent == "" {
+					req.BodyContent = tokens[i+1]
+				} else {
+					req.BodyContent = "\n" + tokens[i+1]
+				}
 				bodyFlag = true
 				i++ // Skip the body content token
 			}
