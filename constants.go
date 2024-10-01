@@ -32,6 +32,7 @@ const BODY_CONTENT_PLACEHOLDER_TYPE_FORM = "# comment\nbody1=value1\nbody2=value
 const BODY_CONTENT_PLACEHOLDER_TYPE_RAW = "{\n    \"body1\": \"value1\",\n    \"body2\": \"value2\"\n}"
 const RESPONSE_STATUS_PLACEHOLDER = "<response status>"
 const RESPONSE_BODY_PLACEHOLDER = "<response body>"
+const RESPONSE_TIME_PLACEHOLDER = "<response time>"
 const URL_PLACEHOLDER = "<url>"
 const TITLE_PLACEHOLDER = "<title>"
 

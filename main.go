@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/yosssi/gohtml"
@@ -396,6 +397,9 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, TabCallbacks) {
 	responseBody.TextStyle.Monospace = true
 	responseBody.SetPlaceHolder(RESPONSE_BODY_PLACEHOLDER)
 	responseBody.Wrapping = fyne.TextWrapWord
+	responseTime := widget.NewEntry()
+	responseTime.TextStyle.Monospace = true
+	responseTime.SetPlaceHolder(RESPONSE_TIME_PLACEHOLDER)
 
 	restMethod := widget.NewSelect(REST_METHODS, nil)
 	restMethod.SetSelectedIndex(0)
@@ -405,6 +409,10 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, TabCallbacks) {
 	sslCheckbox := widget.NewCheck(SSL_ENABLED_TEXT, nil)
 	sslCheckbox.SetChecked(true)
 	sendButton := widget.NewButton(SEND_BUTTON_TEXT, func() {
+		responseBody.SetText("")
+		responseStatus.SetText("")
+		responseTime.SetText("")
+
 		// prepare url with params
 		urlText := url.Text
 		paramsText := []string{}
@@ -500,7 +508,11 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, TabCallbacks) {
 				},
 			}
 		}
+
+		start := time.Now()
 		resp, err := client.Do(req)
+		elapsed := time.Since(start)
+		responseTime.SetText(elapsed.String())
 		if err != nil {
 			errorPopUp(canvas, err)
 			return
@@ -524,7 +536,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, TabCallbacks) {
 		container.NewTabItem(TABS_PARAMS, params),
 		container.NewTabItem(TABS_HEADERS, headers),
 		container.NewTabItem(TABS_BODY, bodyPane))
-	responsePane := container.NewBorder(responseStatus, nil, nil, nil, responseBody)
+	responsePane := container.NewBorder(container.NewVBox(responseStatus, responseTime), nil, nil, nil, responseBody)
 	requestAndResponse := container.NewHSplit(requestPane, responsePane)
 
 	content := container.NewBorder(controls, nil, nil, nil, requestAndResponse)
