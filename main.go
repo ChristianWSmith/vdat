@@ -95,7 +95,7 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 	for i := 1; i < len(tokens); i++ {
 		token := tokens[i]
 
-		switch token {
+		switch strings.TrimSpace(token) {
 		case "-X", "--request":
 			if i+1 < len(tokens) {
 				if containsString(REST_METHODS, tokens[i+1]) {
