@@ -125,7 +125,7 @@ func parseCurlCommand(curlCommand string) (VdatRequest, error) {
 					return VdatRequest{}, errors.New(fmt.Sprint("invalid header: ", header))
 				}
 			}
-		case "-d", "--data":
+		case "-d", "--data", "--data-raw":
 			if i+1 < len(tokens) {
 				if req.BodyContent == "" {
 					req.BodyContent = tokens[i+1]
