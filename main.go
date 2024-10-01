@@ -717,7 +717,7 @@ func main() {
 
 	tabTitle.SetPlaceHolder(TITLE_PLACEHOLDER)
 
-	tabs.OnSelected = func(ti *container.TabItem) {
+	doSelectTab := func() {
 		tabTitle.SetText(tabs.Selected().Text)
 		if tabCallbackMap[tabs.Selected()].pathCallback() != "" {
 			tabPath := tabCallbackMap[tabs.Selected()].pathCallback()
@@ -732,6 +732,10 @@ func main() {
 		} else {
 			tree.Unselect(treeSelected)
 		}
+	}
+
+	tabs.OnSelected = func(ti *container.TabItem) {
+		doSelectTab()
 	}
 
 	tabTitle.OnChanged = func(s string) {
@@ -798,20 +802,7 @@ func main() {
 	closeTabButton := widget.NewButton(CLOSE_BUTTON_TEXT, func() {
 		if len(tabs.Items) >= 2 {
 			tabs.RemoveIndex(tabs.SelectedIndex())
-			tabTitle.SetText(tabs.Selected().Text)
-			if tabCallbackMap[tabs.Selected()].pathCallback() != "" {
-				tabPath := tabCallbackMap[tabs.Selected()].pathCallback()
-				tree.Select(tabPath)
-				tree.OpenBranch(tabPath)
-				relativePath := strings.Replace(tabPath, tree.Root, "", -1)
-				splitRelativePath := strings.Split(relativePath, string(os.PathSeparator))
-				for i := 1; i < len(splitRelativePath); i++ {
-					parent := tree.Root + strings.Join(splitRelativePath[0:i], string(os.PathSeparator))
-					tree.OpenBranch(parent)
-				}
-			} else {
-				tree.Unselect(treeSelected)
-			}
+			doSelectTab()
 		}
 	})
 	tabControlButtons := container.NewHBox(importButton, saveButton, newTabButton, closeTabButton)
