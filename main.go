@@ -799,6 +799,19 @@ func main() {
 		if len(tabs.Items) >= 2 {
 			tabs.RemoveIndex(tabs.SelectedIndex())
 			tabTitle.SetText(tabs.Selected().Text)
+			if tabCallbackMap[tabs.Selected()].pathCallback() != "" {
+				tabPath := tabCallbackMap[tabs.Selected()].pathCallback()
+				tree.Select(tabPath)
+				tree.OpenBranch(tabPath)
+				relativePath := strings.Replace(tabPath, tree.Root, "", -1)
+				splitRelativePath := strings.Split(relativePath, string(os.PathSeparator))
+				for i := 1; i < len(splitRelativePath); i++ {
+					parent := tree.Root + strings.Join(splitRelativePath[0:i], string(os.PathSeparator))
+					tree.OpenBranch(parent)
+				}
+			} else {
+				tree.Unselect(treeSelected)
+			}
 		}
 	})
 	tabControlButtons := container.NewHBox(importButton, saveButton, newTabButton, closeTabButton)
