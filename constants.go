@@ -41,6 +41,7 @@ const TABS_BODY = "Body"
 
 const TITLE_DEFAULT = "untitled"
 
+const SSL_ENABLED_TEXT = "SSL"
 const SEND_BUTTON_TEXT = "SEND"
 const SAVE_BUTTON_TEXT = "SAVE"
 const IMPORT_BUTTON_TEXT = "IMPORT FROM CURL"

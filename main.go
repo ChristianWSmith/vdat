@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -346,6 +347,12 @@ func validRunes(value string) bool {
 
 type SaveCallback func(string, string) error
 type LoadCallback func(string) (string, error)
+type PathCallback func() string
+type TabCallbacks struct {
+	saveCallback SaveCallback
+	loadCallback LoadCallback
+	pathCallback PathCallback
+}
 type VdatRequest struct {
 	Headers     string `json:"Headers"`
 	Params      string `json:"Params"`
@@ -354,9 +361,11 @@ type VdatRequest struct {
 	Url         string `json:"Url"`
 	Title       string `json:"Title"`
 	RestMethod  string `json:"RestMethod"`
+	SslEnabled  bool   `json:"SslEnabled"`
 }
 
-func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, LoadCallback) {
+func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, TabCallbacks) {
+	var tabPath string
 	headers := widget.NewMultiLineEntry()
 	headers.TextStyle.Monospace = true
 	headers.SetPlaceHolder(HEADERS_PLACEHOLDER)
@@ -393,6 +402,8 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 	url := widget.NewEntry()
 	url.SetPlaceHolder(URL_PLACEHOLDER)
 
+	sslCheckbox := widget.NewCheck(SSL_ENABLED_TEXT, nil)
+	sslCheckbox.SetChecked(true)
 	sendButton := widget.NewButton(SEND_BUTTON_TEXT, func() {
 		// prepare url with params
 		urlText := url.Text
@@ -479,7 +490,16 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		}
 
 		// send request
-		client := &http.Client{}
+		var client *http.Client
+		if sslCheckbox.Checked {
+			client = &http.Client{}
+		} else {
+			client = &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+		}
 		resp, err := client.Do(req)
 		if err != nil {
 			errorPopUp(canvas, err)
@@ -498,7 +518,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		responseStatus.SetText(resp.Status)
 		responseBody.SetText(smartFormat(responseBodyContent))
 	})
-	controls := container.NewBorder(nil, nil, restMethod, sendButton, url)
+	controls := container.NewBorder(nil, nil, restMethod, container.NewHBox(sslCheckbox, sendButton), url)
 
 	requestPane := container.NewAppTabs(
 		container.NewTabItem(TABS_PARAMS, params),
@@ -518,15 +538,17 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 			Url:         url.Text,
 			Title:       title,
 			RestMethod:  restMethod.Selected,
+			SslEnabled:  sslCheckbox.Checked,
 		}
 
 		// Create a file to save the struct
 		filename := filepath.Join(dirname, fmt.Sprint(restMethod.Selected, " - ", title))
+		tabPath = filename
 		file, err := os.Create(filename)
-		defer file.Close()
 		if err != nil {
 			return err
 		}
+		defer file.Close()
 
 		// Serialize the struct to JSON
 		encoder := json.NewEncoder(file)
@@ -539,6 +561,7 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		if err != nil {
 			return "", err
 		}
+		tabPath = filename
 		defer file.Close()
 
 		// Create an instance of the struct to load data into
@@ -557,11 +580,22 @@ func makeNewTabContent(canvas fyne.Canvas) (fyne.CanvasObject, SaveCallback, Loa
 		bodyType.SetSelected(vdatRequest.BodyType)
 		url.SetText(vdatRequest.Url)
 		restMethod.SetSelected(vdatRequest.RestMethod)
+		sslCheckbox.SetChecked(vdatRequest.SslEnabled)
 
 		return vdatRequest.Title, nil
 	}
 
-	return content, saveCallback, loadCallback
+	pathCallback := func() string {
+		return tabPath
+	}
+
+	tabCallbacks := TabCallbacks{
+		saveCallback: saveCallback,
+		loadCallback: loadCallback,
+		pathCallback: pathCallback,
+	}
+
+	return content, tabCallbacks
 }
 
 func main() {
@@ -576,7 +610,7 @@ func main() {
 	vdatWindow := vdatApp.NewWindow("Very Dumb API Tester")
 	tabs := container.NewAppTabs()
 	tabTitle := widget.NewEntry()
-	tabSaveCallbacks := make(map[*container.TabItem]SaveCallback)
+	tabCallbackMap := make(map[*container.TabItem]TabCallbacks)
 
 	tree := widget.NewTree(
 		func(id widget.TreeNodeID) (children []widget.TreeNodeID) {
@@ -600,7 +634,7 @@ func main() {
 	}
 
 	treeSelected := tree.Root
-	selectedFolder := tree.Root
+	treeSelectedFolder := tree.Root
 
 	tree.OnSelected = func(uid widget.TreeNodeID) {
 		treeSelected = uid
@@ -609,17 +643,25 @@ func main() {
 			errorPopUp(vdatWindow.Canvas(), err)
 		}
 		if isDir {
-			selectedFolder = treeSelected
+			treeSelectedFolder = treeSelected
 		} else {
-			selectedFolder = filepath.Dir(treeSelected)
-			newTabContent, saveCallback, loadCallback := makeNewTabContent(vdatWindow.Canvas())
-			title, err := loadCallback(uid)
+			treeSelectedFolder = filepath.Dir(treeSelected)
+
+			for _, tabItem := range tabs.Items {
+				if tabCallbackMap[tabItem].pathCallback() == treeSelected {
+					tabs.Select(tabItem)
+					return
+				}
+			}
+
+			newTabContent, tabCallbacks := makeNewTabContent(vdatWindow.Canvas())
+			title, err := tabCallbacks.loadCallback(treeSelected)
 			if err != nil {
-				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", uid)))
+				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", treeSelected)))
 				return
 			}
 			newTab := container.NewTabItem(title, newTabContent)
-			tabSaveCallbacks[newTab] = saveCallback
+			tabCallbackMap[newTab] = tabCallbacks
 			tabs.Append(newTab)
 			tabs.Select(newTab)
 		}
@@ -638,7 +680,7 @@ func main() {
 					errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to delete: ", treeSelected)))
 					return
 				}
-				tree.RefreshItem(selectedFolder)
+				tree.RefreshItem(treeSelectedFolder)
 				tree.Select(filepath.Dir(treeSelected))
 			}
 		}()
@@ -648,14 +690,14 @@ func main() {
 		resultCh := getStringPopUp(vdatWindow.Canvas(), "New Folder Name")
 		go func() {
 			result := <-resultCh
-			newFolder := filepath.Join(selectedFolder, result)
+			newFolder := filepath.Join(treeSelectedFolder, result)
 
 			err = os.MkdirAll(newFolder, os.ModePerm)
 			if err != nil {
 				errorPopUp(vdatWindow.Canvas(), err)
 				return
 			}
-			tree.RefreshItem(selectedFolder)
+			tree.RefreshItem(treeSelectedFolder)
 		}()
 	})
 	fileControls := container.NewBorder(nil, nil, nil, deleteButton, newFolderButton)
@@ -665,6 +707,19 @@ func main() {
 
 	tabs.OnSelected = func(ti *container.TabItem) {
 		tabTitle.SetText(tabs.Selected().Text)
+		if tabCallbackMap[tabs.Selected()].pathCallback() != "" {
+			tabPath := tabCallbackMap[tabs.Selected()].pathCallback()
+			tree.Select(tabPath)
+			tree.OpenBranch(tabPath)
+			relativePath := strings.Replace(tabPath, tree.Root, "", -1)
+			splitRelativePath := strings.Split(relativePath, string(os.PathSeparator))
+			for i := 1; i < len(splitRelativePath); i++ {
+				parent := tree.Root + strings.Join(splitRelativePath[0:i], string(os.PathSeparator))
+				tree.OpenBranch(parent)
+			}
+		} else {
+			tree.Unselect(treeSelected)
+		}
 	}
 
 	tabTitle.OnChanged = func(s string) {
@@ -699,32 +754,32 @@ func main() {
 				return
 			}
 
-			newTabContent, saveCallback, loadCallback := makeNewTabContent(vdatWindow.Canvas())
-			title, err := loadCallback(tempFile.Name())
+			newTabContent, tabCallbacks := makeNewTabContent(vdatWindow.Canvas())
+			title, err := tabCallbacks.loadCallback(tempFile.Name())
 			if err != nil {
 				errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Failed to load file: ", tempFile.Name())))
 				return
 			}
 			newTab := container.NewTabItem(title, newTabContent)
-			tabSaveCallbacks[newTab] = saveCallback
+			tabCallbackMap[newTab] = tabCallbacks
 			tabs.Append(newTab)
 			tabs.Select(newTab)
 		}()
 	})
 	saveButton := widget.NewButton(SAVE_BUTTON_TEXT, func() {
-		err := tabSaveCallbacks[tabs.Selected()](selectedFolder, tabTitle.Text)
+		err := tabCallbackMap[tabs.Selected()].saveCallback(treeSelectedFolder, tabTitle.Text)
 		if err != nil {
 			errorPopUp(vdatWindow.Canvas(), errors.New(fmt.Sprint("Save failed for: ", tabTitle)))
 			return
 		}
-		tree.RefreshItem(selectedFolder)
-		tree.OpenBranch(selectedFolder)
+		tree.RefreshItem(treeSelectedFolder)
+		tree.OpenBranch(treeSelectedFolder)
 
 	})
 	newTabButton := widget.NewButton(NEW_BUTTON_TEXT, func() {
-		newTabContent, saveCallback, _ := makeNewTabContent(vdatWindow.Canvas())
+		newTabContent, tabCallbacks := makeNewTabContent(vdatWindow.Canvas())
 		newTab := container.NewTabItem(TITLE_DEFAULT, newTabContent)
-		tabSaveCallbacks[newTab] = saveCallback
+		tabCallbackMap[newTab] = tabCallbacks
 		tabs.Append(newTab)
 		tabs.Select(newTab)
 	})
